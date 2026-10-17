@@ -1,0 +1,65 @@
+
+# ==========================================
+# AGENTIC AI CHATBOT - COMPLETE REQUIREMENTS
+# Python 3.12 recommended
+# ==========================================
+
+# LLM and LangChain
+langchain
+langchain-core
+langchain-community
+langchain-groq
+langchain-openai
+langchain-huggingface
+
+# Agent orchestration and memory
+langgraph
+langgraph-checkpoint-sqlite
+
+# Web application
+streamlit
+
+# Configuration and validation
+python-dotenv
+pydantic
+
+# RAG and vector database
+langchain-chroma
+langchain-text-splitters
+chromadb
+sentence-transformers
+
+# Document processing
+pypdf
+python-docx
+pandas
+openpyxl
+
+# Web search and HTTP
+ddgs
+requests
+httpx
+
+# Embeddings and machine learning
+numpy
+scikit-learn
+
+# Audio processing and speech
+faster-whisper
+soundfile
+pydub
+gTTS
+
+# Image processing and computer vision
+Pillow
+opencv-python-headless
+
+# Testing and code quality
+pytest
+pytest-cov
+ruff
+mypy
+
+# Jupyter and notebooks
+ipykernel
+jupyterlab

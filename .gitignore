@@ -1,0 +1,24 @@
+# Environment
+.venv/
+.env
+.python-version
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local data
+data/
+chroma_db/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets and logs
+*.log
