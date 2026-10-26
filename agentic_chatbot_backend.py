@@ -3,10 +3,9 @@ from typing import TypedDict, Annotated
 from langchain_core.messages import BaseMessage,HumanMessage
 from langchain_groq import ChatGroq
 from langgraph.checkpoint.memory import MemorySaver
-
+from langgraph.graph.message import add_messages
 import os
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
 
 load_dotenv()
 
@@ -15,8 +14,6 @@ llm = ChatGroq(
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0
 )
-
-from langgraph.graph.message import add_messages
 
 class ChatState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
