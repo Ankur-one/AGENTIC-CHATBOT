@@ -1,65 +1,85 @@
-
-# ==========================================
+# ==========================================================
 # AGENTIC AI CHATBOT - COMPLETE REQUIREMENTS
-# Python 3.12 recommended
-# ==========================================
+# Recommended Python: 3.12
+# ==========================================================
 
-# LLM and LangChain
+# ---------------- LLM AND LANGCHAIN ----------------
 langchain
 langchain-core
 langchain-community
 langchain-groq
 langchain-openai
+langchain-google-genai
 langchain-huggingface
 
-# Agent orchestration and memory
+# ---------------- AGENT ORCHESTRATION AND MEMORY ----------------
 langgraph
+langgraph-checkpoint
 langgraph-checkpoint-sqlite
 
-# Web application
+# ---------------- WEB APPLICATION ----------------
 streamlit
+Flask
+flask-cors
+gunicorn
 
-# Configuration and validation
+# ---------------- CONFIGURATION AND VALIDATION ----------------
 python-dotenv
 pydantic
+pydantic-settings
 
-# RAG and vector database
+# ---------------- RAG, EMBEDDINGS AND VECTOR DATABASE ----------------
 langchain-chroma
 langchain-text-splitters
 chromadb
 sentence-transformers
+transformers
+huggingface-hub
 
-# Document processing
+# ---------------- DOCUMENT PROCESSING ----------------
 pypdf
 python-docx
 pandas
 openpyxl
+unstructured
+beautifulsoup4
 
-# Web search and HTTP
+# ---------------- WEB SEARCH AND WEATHER ----------------
+langchain-tavily
+tavily-python
 ddgs
 requests
 httpx
 
-# Embeddings and machine learning
+# ---------------- GOOGLE GEMINI API ----------------
+google-genai
+
+# ---------------- EMBEDDINGS AND MACHINE LEARNING ----------------
 numpy
 scikit-learn
+scipy
 
-# Audio processing and speech
+# ---------------- AUDIO AND SPEECH ----------------
 faster-whisper
 soundfile
 pydub
 gTTS
+SpeechRecognition
 
-# Image processing and computer vision
+# ---------------- IMAGE PROCESSING AND COMPUTER VISION ----------------
 Pillow
 opencv-python-headless
 
-# Testing and code quality
+# ---------------- TESTING AND CODE QUALITY ----------------
 pytest
 pytest-cov
 ruff
 mypy
 
-# Jupyter and notebooks
+# ---------------- JUPYTER AND NOTEBOOKS ----------------
 ipykernel
 jupyterlab
+
+# ---------------- UTILITIES ----------------
+tenacity
+typing-extensions
