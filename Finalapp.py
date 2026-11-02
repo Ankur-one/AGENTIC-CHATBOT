@@ -10,6 +10,11 @@ from Final_Agent_backend import (
     add_pdf_to_knowledge_base,
     get_all_threads,
     delete_thread_from_db,
+    get_available_models,
+    is_tavily_available,
+    GROQ_API_KEY,
+    GOOGLE_API_KEY,
+    TAVILY_API_KEY,
 )
 
 
@@ -84,7 +89,7 @@ st.markdown(
         font-size: 2rem;
         font-weight: 650;
         text-align: center;
-        margin-top: 16vh;
+        margin-top: 14vh;
         margin-bottom: 0.5rem;
         color: #f5f5f5;
     }
@@ -243,9 +248,19 @@ def delete_conversation(thread_id):
 
 
 def stream_ai_response(user_input):
+    available_models = get_available_models()
+    model_info = available_models.get(
+        st.session_state.get("selected_model", ""),
+        {}
+    )
+    provider = model_info.get("provider")
+    model_name = model_info.get("model")
+
     config = {
         "configurable": {
-            "thread_id": st.session_state.thread_id
+            "thread_id": st.session_state.thread_id,
+            "model_provider": provider,
+            "model_name": model_name,
         }
     }
 
@@ -335,6 +350,14 @@ def process_uploaded_pdfs(uploaded_files):
 # SESSION STATE
 # ==========================================================
 
+available_models = get_available_models()
+available_model_keys = list(available_models.keys())
+
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = (
+        available_model_keys[0] if available_model_keys else "Default"
+    )
+
 if "chat_threads" not in st.session_state:
     saved_threads = get_all_threads()
     st.session_state.chat_threads = saved_threads if saved_threads else []
@@ -366,7 +389,25 @@ add_thread(st.session_state.thread_id)
 
 with st.sidebar:
     st.markdown("## 🤖 Agentic Chatbot")
-    st.caption("Gemini · LangGraph · RAG")
+    st.caption("Groq · Gemini · Tavily · LangGraph · RAG")
+    st.divider()
+
+    # Model Selector
+    if available_model_keys:
+        st.markdown("##### ⚙️ LLM Model")
+        current_idx = (
+            available_model_keys.index(st.session_state.selected_model)
+            if st.session_state.selected_model in available_model_keys
+            else 0
+        )
+        st.session_state.selected_model = st.selectbox(
+            "Select Model",
+            options=available_model_keys,
+            index=current_idx,
+            label_visibility="collapsed",
+            help="Switch between Groq models (Llama/Qwen) and Google Gemini."
+        )
+
     st.divider()
 
     if st.button(
@@ -455,14 +496,17 @@ with st.sidebar:
                     st.rerun()
 
     st.divider()
-    st.markdown("### Features")
+    st.markdown("### Integrations")
+    groq_status = "🟢 Active" if GROQ_API_KEY else "🔴 Missing key"
+    gemini_status = "🟢 Active" if GOOGLE_API_KEY else "🔴 Missing key"
+    tavily_status = "🟢 Active" if is_tavily_available() else "🔴 Inactive"
+
     st.markdown(
-        """
-        - 📎 Attach PDF documents
-        - 📚 Search uploaded documents
-        - 🔎 FAISS semantic retrieval
-        - ✨ Gemini responses
-        - 🌐 Optional Tavily search
+        f"""
+        - ⚡ **Groq:** {groq_status}
+        - ✨ **Gemini:** {gemini_status}
+        - 🌐 **Tavily Search:** {tavily_status}
+        - 📚 **FAISS PDF RAG:** 🟢 Active
         """
     )
     st.caption("Developed by Ankur Kumar")
@@ -473,7 +517,7 @@ with st.sidebar:
 # ==========================================================
 
 st.markdown(
-    '<div class="app-label">LANGGRAPH · CONVERSATIONAL AI</div>',
+    '<div class="app-label">LANGGRAPH · CONVERSATIONAL AGENT</div>',
     unsafe_allow_html=True,
 )
 
@@ -494,7 +538,7 @@ if not st.session_state.message_history:
         """
         <div class="welcome-title">How can I help you today?</div>
         <div class="welcome-subtitle">
-            Ask a question or attach a PDF using the control below.
+            Ask anything, search the web with Tavily, or attach a PDF to query your documents.
         </div>
         """,
         unsafe_allow_html=True,
