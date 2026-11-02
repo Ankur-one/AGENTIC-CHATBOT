@@ -53,8 +53,10 @@ if not GOOGLE_API_KEY:
 # 2. GEMINI MODEL AND EMBEDDINGS
 # ==========================================================
 
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+
 llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=GEMINI_MODEL,
     google_api_key=GOOGLE_API_KEY,
     temperature=0,
 )
@@ -366,6 +368,34 @@ checkpointer.setup()
 chatbot = builder.compile(
     checkpointer=checkpointer,
 )
+
+
+def get_all_threads():
+    """Retrieve all unique conversation thread IDs from the checkpointer."""
+    all_threads = []
+    seen = set()
+    try:
+        for checkpoint_tuple in checkpointer.list(None):
+            t_id = checkpoint_tuple.config.get("configurable", {}).get("thread_id")
+            if t_id and t_id not in seen:
+                seen.add(t_id)
+                all_threads.append(t_id)
+    except Exception as error:
+        print(f"Error fetching threads from checkpointer: {error}")
+    return all_threads
+
+
+def delete_thread_from_db(thread_id: str):
+    """Delete all checkpoints and writes for a thread from SQLite."""
+    try:
+        with sqlite3.connect(str(DATABASE_PATH)) as conn:
+            conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+            conn.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
+            conn.commit()
+        return True
+    except Exception as error:
+        print(f"Error deleting thread {thread_id} from database: {error}")
+        return False
 
 
 # ==========================================================

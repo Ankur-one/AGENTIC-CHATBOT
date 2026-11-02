@@ -1,4 +1,3 @@
-
 import re
 import uuid
 from pathlib import Path
@@ -9,6 +8,8 @@ from langchain_core.messages import HumanMessage, AIMessage, AIMessageChunk
 from Final_Agent_backend import (
     chatbot,
     add_pdf_to_knowledge_base,
+    get_all_threads,
+    delete_thread_from_db,
 )
 
 
@@ -122,6 +123,21 @@ def generate_thread_id():
     return str(uuid.uuid4())
 
 
+def extract_text_content(content):
+    """Safely extract plain text from string or structured content blocks."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text" and block.get("text"):
+                parts.append(block["text"])
+        return "".join(parts)
+    return str(content) if content is not None else ""
+
+
 def suggest_title(message, max_words=7):
     text = re.sub(r"\s+", " ", message).strip()
     text = re.sub(r"[^\w\s'-]", "", text)
@@ -138,12 +154,34 @@ def suggest_title(message, max_words=7):
     return title[:60]
 
 
+def get_thread_title(thread_id):
+    """Retrieve title from session state or derive from the first user message."""
+    if thread_id in st.session_state.get("chat_titles", {}):
+        return st.session_state.chat_titles[thread_id]
+
+    try:
+        config = {"configurable": {"thread_id": thread_id}}
+        state = chatbot.get_state(config)
+        messages = state.values.get("messages", [])
+        for message in messages:
+            if isinstance(message, HumanMessage):
+                text = extract_text_content(message.content)
+                if text.strip():
+                    title = suggest_title(text.strip())
+                    st.session_state.setdefault("chat_titles", {})[thread_id] = title
+                    return title
+    except Exception:
+        pass
+
+    return "New conversation"
+
+
 def add_thread(thread_id):
     if thread_id not in st.session_state.chat_threads:
         st.session_state.chat_threads.append(thread_id)
 
     if thread_id not in st.session_state.chat_titles:
-        st.session_state.chat_titles[thread_id] = "New conversation"
+        st.session_state.chat_titles[thread_id] = get_thread_title(thread_id)
 
 
 def reset_chat():
@@ -163,23 +201,22 @@ def load_conversation(thread_id):
 
         for message in messages:
             if isinstance(message, HumanMessage):
-                history.append({
-                    "role": "user",
-                    "content": message.content,
-                })
+                text = extract_text_content(message.content)
+                if text.strip():
+                    history.append({
+                        "role": "user",
+                        "content": text,
+                    })
 
             elif isinstance(message, AIMessage):
                 # Do not display internal tool-call messages.
-                if message.content and not message.tool_calls:
-                    content = message.content
-
-                    if not isinstance(content, str):
-                        content = str(content)
-
-                    history.append({
-                        "role": "assistant",
-                        "content": content,
-                    })
+                if not message.tool_calls:
+                    text = extract_text_content(message.content)
+                    if text.strip():
+                        history.append({
+                            "role": "assistant",
+                            "content": text,
+                        })
 
         return history
 
@@ -199,6 +236,7 @@ def delete_conversation(thread_id):
         if item != thread_id
     ]
     st.session_state.chat_titles.pop(thread_id, None)
+    delete_thread_from_db(thread_id)
 
     if st.session_state.thread_id == thread_id:
         reset_chat()
@@ -234,7 +272,9 @@ def stream_ai_response(user_input):
 
         elif isinstance(content, list):
             for block in content:
-                if (
+                if isinstance(block, str) and block:
+                    yield block
+                elif (
                     isinstance(block, dict)
                     and block.get("type") == "text"
                     and block.get("text")
@@ -248,11 +288,13 @@ def process_uploaded_pdfs(uploaded_files):
     upload_dir = Path(__file__).resolve().parent / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
 
+    results = []
     for uploaded_file in uploaded_files:
         safe_name = Path(uploaded_file.name).name
 
         if Path(safe_name).suffix.lower() != ".pdf":
             st.error(f"{safe_name}: only PDF files are supported.")
+            results.append({"name": safe_name, "success": False})
             continue
 
         saved_path = upload_dir / (
@@ -271,6 +313,12 @@ def process_uploaded_pdfs(uploaded_files):
                 f"**{safe_name}** added to your knowledge base. "
                 f"Pages: {page_count} · Chunks: {chunk_count}"
             )
+            results.append({
+                "name": safe_name,
+                "success": True,
+                "pages": page_count,
+                "chunks": chunk_count,
+            })
 
         except Exception as error:
             st.error(
@@ -278,6 +326,9 @@ def process_uploaded_pdfs(uploaded_files):
                 "Check the terminal for details."
             )
             print(f"PDF indexing error for {safe_name}: {error}")
+            results.append({"name": safe_name, "success": False})
+
+    return results
 
 
 # ==========================================================
@@ -285,16 +336,20 @@ def process_uploaded_pdfs(uploaded_files):
 # ==========================================================
 
 if "chat_threads" not in st.session_state:
-    st.session_state.chat_threads = []
+    saved_threads = get_all_threads()
+    st.session_state.chat_threads = saved_threads if saved_threads else []
 
 if "chat_titles" not in st.session_state:
     st.session_state.chat_titles = {}
 
-if "message_history" not in st.session_state:
-    st.session_state.message_history = []
-
 if "thread_id" not in st.session_state:
-    st.session_state.thread_id = generate_thread_id()
+    if st.session_state.chat_threads:
+        st.session_state.thread_id = st.session_state.chat_threads[0]
+    else:
+        st.session_state.thread_id = generate_thread_id()
+
+if "message_history" not in st.session_state:
+    st.session_state.message_history = load_conversation(st.session_state.thread_id)
 
 if "rename_thread_id" not in st.session_state:
     st.session_state.rename_thread_id = None
@@ -354,7 +409,11 @@ with st.sidebar:
                 help="Rename or delete conversation",
                 use_container_width=True,
             ):
-                st.session_state.rename_thread_id = thread_id
+                if st.session_state.rename_thread_id == thread_id:
+                    st.session_state.rename_thread_id = None
+                else:
+                    st.session_state.rename_thread_id = thread_id
+                st.rerun()
 
         if st.session_state.rename_thread_id == thread_id:
             with st.container(border=True):
@@ -490,8 +549,11 @@ user_input = ""
 uploaded_files = []
 
 if submission is not None:
-    user_input = (submission.text or "").strip()
-    uploaded_files = submission.files
+    if isinstance(submission, str):
+        user_input = submission.strip()
+    else:
+        user_input = (getattr(submission, "text", "") or "").strip()
+        uploaded_files = getattr(submission, "files", []) or []
 
 elif suggested_prompt:
     user_input = suggested_prompt
@@ -501,8 +563,23 @@ elif suggested_prompt:
 # INDEX ATTACHED PDFS
 # ==========================================================
 
+upload_results = []
 if uploaded_files:
-    process_uploaded_pdfs(uploaded_files)
+    upload_results = process_uploaded_pdfs(uploaded_files)
+
+# If only files were uploaded without accompanying question
+if uploaded_files and not user_input:
+    successful_uploads = [r["name"] for r in upload_results if r.get("success")]
+    if successful_uploads:
+        ack_message = (
+            f"📎 **Uploaded and indexed:** {', '.join(successful_uploads)}\n\n"
+            "You can now ask questions about the contents of this document!"
+        )
+        st.session_state.message_history.append({
+            "role": "assistant",
+            "content": ack_message,
+        })
+        st.rerun()
 
 
 # ==========================================================
@@ -542,16 +619,18 @@ if user_input:
                 "content": response,
             })
         else:
+            fallback = "I couldn't generate a response. Please try again."
             st.session_state.message_history.append({
                 "role": "assistant",
-                "content": "I couldn't generate a response. Please try again.",
+                "content": fallback,
             })
+            st.markdown(fallback)
 
     except Exception as error:
-        st.error(
-            "An error occurred while generating the response. "
-            "Check your API keys and terminal output."
-        )
+        error_msg = f"An error occurred while generating the response: {error}"
+        st.error(error_msg)
         print(f"Chatbot response error: {error}")
 
-    st.rerun()
+    # Rerun on first message so the sidebar title updates immediately
+    if is_first_message:
+        st.rerun()
