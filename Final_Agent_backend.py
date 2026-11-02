@@ -13,12 +13,26 @@ from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from langchain_google_genai import (
-    ChatGoogleGenerativeAI,
-    GoogleGenerativeAIEmbeddings,
-)
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
+
+try:
+    from langchain_google_genai import (
+        ChatGoogleGenerativeAI,
+        GoogleGenerativeAIEmbeddings,
+    )
+except ImportError:
+    ChatGoogleGenerativeAI = None
+    GoogleGenerativeAIEmbeddings = None
+
+try:
+    from langchain_community.document_loaders import PyPDFLoader
+except ImportError:
+    PyPDFLoader = None
+
+try:
+    from langchain_community.vectorstores import FAISS
+except ImportError:
+    FAISS = None
+
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from langgraph.graph import StateGraph, START, END, MessagesState
@@ -95,6 +109,11 @@ def create_llm(provider: str = None, model_name: str = None):
     elif provider in {"gemini", "google"}:
         if not GOOGLE_API_KEY:
             raise ValueError("GOOGLE_API_KEY is not configured in .env.")
+        if ChatGoogleGenerativeAI is None:
+            raise ImportError(
+                "langchain-google-genai is not installed. "
+                "Install it with 'pip install langchain-google-genai'."
+            )
         model = model_name or GEMINI_MODEL
         llm = ChatGoogleGenerativeAI(
             model=model,
@@ -116,14 +135,14 @@ def get_available_models():
         models["Groq (openai/gpt-oss-120b)"] = {"provider": "groq", "model": "openai/gpt-oss-120b"}
         models["Groq (openai/gpt-oss-20b)"] = {"provider": "groq", "model": "openai/gpt-oss-20b"}
         models["Groq (qwen/qwen3.8-27b)"] = {"provider": "groq", "model": "qwen/qwen3.8-27b"}
-    if GOOGLE_API_KEY:
+    if GOOGLE_API_KEY and ChatGoogleGenerativeAI is not None:
         models["Gemini (gemini-3.5-flash)"] = {"provider": "gemini", "model": "gemini-3.5-flash"}
         models["Gemini (gemini-3.8-flash)"] = {"provider": "gemini", "model": "gemini-3.8-flash"}
     return models
 
 
 # Embeddings for Vector Store
-if GOOGLE_API_KEY:
+if GOOGLE_API_KEY and GoogleGenerativeAIEmbeddings is not None:
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
         google_api_key=GOOGLE_API_KEY,
@@ -159,8 +178,8 @@ def load_or_create_vector_store():
     """
     global vector_store, retriever
 
-    if embeddings is None:
-        print("GOOGLE_API_KEY missing; embedding model not initialized.")
+    if FAISS is None or embeddings is None:
+        print("FAISS or embedding model not initialized.")
         return None
 
     index_file = FAISS_INDEX_DIR / "index.faiss"
@@ -181,7 +200,7 @@ def load_or_create_vector_store():
             vector_store = None
 
     # Create a new index from the default PDF if necessary.
-    if vector_store is None and PDF_PATH.exists():
+    if vector_store is None and PDF_PATH.exists() and PyPDFLoader is not None:
         print(f"Creating initial knowledge base from: {PDF_PATH.name}")
 
         documents = PyPDFLoader(str(PDF_PATH)).load()
@@ -234,6 +253,12 @@ def add_pdf_to_knowledge_base(pdf_path):
         tuple: (number_of_pages, number_of_chunks)
     """
     global vector_store, retriever
+
+    if FAISS is None:
+        raise ImportError("FAISS is not installed. Please install faiss-cpu to enable PDF indexing.")
+
+    if PyPDFLoader is None:
+        raise ImportError("pypdf is not installed. Please install pypdf to read PDF files.")
 
     if embeddings is None:
         raise ValueError("Document embeddings require GOOGLE_API_KEY in .env.")

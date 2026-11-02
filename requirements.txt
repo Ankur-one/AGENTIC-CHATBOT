@@ -29,6 +29,7 @@ pydantic
 pydantic-settings
 
 # ---------------- RAG, EMBEDDINGS AND VECTOR DATABASE ----------------
+faiss-cpu
 langchain-chroma
 langchain-text-splitters
 chromadb
